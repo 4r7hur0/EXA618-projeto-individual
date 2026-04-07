@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Oferta — {{ o.origem }}{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Início</a> · <a href="/ofertas">Todas as ofertas</a></p>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <h1 class="h4">{{ o.nome_produto }}</h1>
+  <form method="post" action="/ofertas/{{ o.id }}/excluir" onsubmit="return confirm('Excluir esta oferta?');">
+    <button type="submit" class="btn btn-outline-danger btn-sm">Excluir</button>
+  </form>
+</div>
+
+<p><span class="badge bg-secondary">{{ o.origem }}</span></p>
+<p class="text-muted small">Busca: {{ o.termo_busca }} · Extraído: {{ o.extraido_em_texto or '—' }} · Salvo em: {{ o.criado_em.strftime('%d/%m/%Y %H:%M UTC') }}</p>
+
+{% if o.imagem_url %}
+<div class="text-center mb-3">
+  <img src="{{ o.imagem_url }}" alt="{{ o.nome_produto }}" class="img-fluid rounded border shadow-sm" style="max-height:260px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
+</div>
+{% endif %}
+
+<div class="card p-4 mb-3">
+  <p class="mb-1"><strong>Preço:</strong> {{ o.preco or '—' }}</p>
+  <p class="mb-1"><strong>Memória:</strong> {{ o.memoria or '—' }}</p>
+  {% if o.link %}<p class="mb-0"><a href="{{ o.link }}" target="_blank" rel="noopener">Abrir anúncio</a></p>{% endif %}
+</div>
+
+{% if o.origem == 'mercadolivre' %}
+<div class="card p-4">
+  <p class="mb-1"><strong>Vendedor:</strong> {{ o.vendedor or '—' }}</p>
+  <p class="mb-1"><strong>Reputação:</strong> {{ o.reputacao or '—' }}</p>
+  {% if o.reputacao_nivel %}<p class="mb-1"><strong>Nível:</strong> {{ o.reputacao_nivel }}</p>{% endif %}
+  {% if o.vendas_aprox %}<p class="mb-0"><strong>Vendas:</strong> {{ o.vendas_aprox }}</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

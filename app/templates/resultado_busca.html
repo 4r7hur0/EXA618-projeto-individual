@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}{% if mc %}{{ mc.modelo }}{% else %}{{ termo }}{% endif %} — Resultado{% endblock %}
+{% block content %}
+<p class="mb-3"><a href="/">&larr; Nova busca</a></p>
+
+{% if from_cache %}
+<div class="alert alert-info py-2 small mb-3">
+  Resultado carregado do <strong>banco de dados</strong> (busca idêntica recente). Para atualizar nos sites, marque <em>Forçar nova busca</em> na página inicial.
+</div>
+{% endif %}
+
+{% set titulo = mc.modelo if mc else termo %}
+
+{% set img_hero = (mc.imagem_url if mc else None) or (amz_list[0].imagem_url if amz_list and amz_list[0].imagem_url else None) or (ml_list[0].imagem_url if ml_list and ml_list[0].imagem_url else None) %}
+<div class="bg-white rounded-3 shadow-sm p-4 mb-4">
+  <div class="row g-3 align-items-center">
+    {% if img_hero %}
+    <div class="col-sm-4 col-md-3 text-center">
+      <img src="{{ img_hero }}" alt="{{ titulo }}" class="img-fluid rounded border" style="max-height:220px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
+    </div>
+    <div class="col">
+    {% else %}
+    <div class="col-12">
+    {% endif %}
+      <h1 class="h3 mb-1">{{ titulo }}</h1>
+      <p class="text-muted small mb-0">Busca: <strong>{{ termo }}</strong> · Ficha técnica (Mais Celular) + ofertas (Amazon e Mercado Livre)</p>
+    </div>
+  </div>
+</div>
+
+<!-- Especificações -->
+<section class="mb-5">
+  <h2 class="h5 mb-3">Especificações</h2>
+  <div class="card border-primary border-opacity-25">
+    <div class="card-header bg-primary text-white py-2">Mais Celular</div>
+    <div class="card-body">
+      {% if mc_erro %}
+      <div class="alert alert-warning mb-0">{{ mc_erro }}</div>
+      {% elif mc %}
+      {% if mc.imagem_url and mc.imagem_url != img_hero %}
+      <div class="text-center mb-3">
+        <img src="{{ mc.imagem_url }}" alt="{{ mc.modelo }}" class="img-fluid rounded border" style="max-height:180px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
+      </div>
+      {% endif %}
+      <div class="row g-3 small">
+        <div class="col-md-6 col-lg-4"><strong>AnTuTu</strong><br>{{ mc.antutu or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>Geekbench</strong><br>{{ mc.geekbench or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>Chipset</strong><br>{{ mc.processador or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>Sistema</strong><br>{{ mc.sistema_operacional or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>RAM</strong><br>{{ mc.memoria_ram or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>Armazenamento</strong><br>{{ mc.armazenamento or '—' }}</div>
+        <div class="col-12"><strong>Tela</strong><br>{{ mc.tela or '—' }}</div>
+        <div class="col-md-6"><strong>Câmera traseira</strong><br>{{ mc.camera_traseira or '—' }}</div>
+        <div class="col-md-6"><strong>Câmera frontal</strong><br>{{ mc.camera_frontal or '—' }}</div>
+        <div class="col-12"><strong>Conectividade</strong><br>{{ mc.conectividade or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>Bateria</strong><br>{{ mc.bateria or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>Carregamento</strong><br>{{ mc.carregamento or '—' }}</div>
+        <div class="col-md-6 col-lg-4"><strong>Dimensões / peso</strong><br>{{ mc.dimensoes or '—' }} · {{ mc.peso or '—' }}</div>
+      </div>
+      {% if mc.url %}<p class="mt-3 mb-0"><a href="{{ mc.url }}" target="_blank" rel="noopener">Abrir ficha no Mais Celular</a></p>{% endif %}
+      {% else %}
+      <p class="text-muted mb-0">Sem dados de ficha técnica.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- Ofertas -->
+<section>
+  <h2 class="h5 mb-3">Onde comprar</h2>
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="card h-100 border-warning border-opacity-50">
+        <div class="card-header bg-warning text-dark fw-semibold">Amazon</div>
+        <div class="card-body">
+          {% if amz_erro %}
+          <div class="alert alert-warning small mb-0">{{ amz_erro }}</div>
+          {% elif amz_list and amz_list|length > 0 %}
+          {% for amz in amz_list %}
+          {% if not loop.first %}<hr class="my-4">{% endif %}
+          <p class="text-muted small mb-2">Opção {{ loop.index }} de {{ amz_list|length }}</p>
+          {% if amz.imagem_url and amz.imagem_url != img_hero %}
+          <div class="text-center mb-3">
+            <img src="{{ amz.imagem_url }}" alt="" class="img-fluid rounded border" style="max-height:160px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
+          </div>
+          {% endif %}
+          <p class="fw-medium mb-2">{{ amz.nome }}</p>
+          <p class="mb-1"><strong>Preço:</strong> {{ amz.preco or '—' }}</p>
+          <p class="mb-3"><strong>Memória:</strong> {{ amz.memoria or '—' }}</p>
+          {% if amz.link %}
+          <a class="btn btn-warning text-dark w-100" href="{{ amz.link }}" target="_blank" rel="noopener">Ver na Amazon</a>
+          {% endif %}
+          {% endfor %}
+          {% else %}
+          <p class="text-muted mb-0">Nenhuma oferta encontrada.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100 border-success border-opacity-50">
+        <div class="card-header bg-success text-white fw-semibold">Mercado Livre</div>
+        <div class="card-body">
+          {% if ml_erro %}
+          <div class="alert alert-warning small mb-0">{{ ml_erro }}</div>
+          {% elif ml_list and ml_list|length > 0 %}
+          {% for ml in ml_list %}
+          {% if not loop.first %}<hr class="my-4">{% endif %}
+          <p class="text-muted small mb-2">Opção {{ loop.index }} de {{ ml_list|length }}</p>
+          {% if ml.imagem_url and ml.imagem_url != img_hero %}
+          <div class="text-center mb-3">
+            <img src="{{ ml.imagem_url }}" alt="" class="img-fluid rounded border" style="max-height:160px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
+          </div>
+          {% endif %}
+          <p class="fw-medium mb-2">{{ ml.nome }}</p>
+          <p class="mb-1"><strong>Preço:</strong> {{ ml.preco or '—' }}</p>
+          <p class="mb-1"><strong>Memória:</strong> {{ ml.memoria or '—' }}</p>
+          <p class="mb-1"><strong>Vendedor:</strong> {{ ml.vendedor or '—' }}</p>
+          <p class="mb-3"><strong>Reputação:</strong> {{ ml.reputacao or '—' }}</p>
+          {% if ml.link %}
+          <a class="btn btn-success w-100" href="{{ ml.link }}" target="_blank" rel="noopener">Ver no Mercado Livre</a>
+          {% endif %}
+          {% endfor %}
+          {% else %}
+          <p class="text-muted mb-0">Nenhuma oferta encontrada.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Histórico de preço -->
+<section class="mb-5">
+  <h2 class="h5 mb-3">Histórico de preço</h2>
+  <p class="text-muted small">Pontos registrados ao salvar a busca e quando o serviço de atualização detecta mudança de preço.</p>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-warning bg-opacity-10 text-dark fw-semibold small">Amazon</div>
+        <div class="card-body" style="min-height: 220px;">
+          <canvas id="chartAmazon" aria-label="Gráfico histórico Amazon"></canvas>
+          <p id="chartAmazonEmpty" class="text-muted small mb-0 d-none">Sem histórico numérico ainda.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-success bg-opacity-10 text-dark fw-semibold small">Mercado Livre</div>
+        <div class="card-body" style="min-height: 220px;">
+          <canvas id="chartMl" aria-label="Gráfico histórico Mercado Livre"></canvas>
+          <p id="chartMlEmpty" class="text-muted small mb-0 d-none">Sem histórico numérico ainda.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="hist-amazon-data">{{ hist_amazon_json|safe }}</script>
+<script type="application/json" id="hist-ml-data">{{ hist_ml_json|safe }}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  function buildLine(canvasId, emptyId, jsonId, borderRgb, fillRgba) {
+    var canvas = document.getElementById(canvasId);
+    var emptyEl = document.getElementById(emptyId);
+    var je = document.getElementById(jsonId);
+    if (!canvas || !je) return;
+    var data;
+    try { data = JSON.parse(je.textContent); } catch (e) { return; }
+    var labels = [];
+    var vals = [];
+    var textosF = [];
+    for (var i = 0; i < (data.labels || []).length; i++) {
+      var v = data.valores[i];
+      if (v != null && !isNaN(Number(v))) {
+        labels.push(data.labels[i]);
+        vals.push(Number(v));
+        textosF.push((data.textos && data.textos[i]) ? data.textos[i] : "");
+      }
+    }
+    if (labels.length === 0) {
+      if (emptyEl) emptyEl.classList.remove("d-none");
+      canvas.style.display = "none";
+      return;
+    }
+    if (emptyEl) emptyEl.classList.add("d-none");
+    new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Preço (R$)",
+          data: vals,
+          borderColor: borderRgb,
+          backgroundColor: fillRgba,
+          tension: 0.2,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                var t = textosF[ctx.dataIndex];
+                return t || ("R$ " + ctx.parsed.y.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: function (v) {
+                return Number(v).toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                });
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  buildLine("chartAmazon", "chartAmazonEmpty", "hist-amazon-data", "rgb(220, 140, 0)", "rgba(220, 140, 0, 0.15)");
+  buildLine("chartMl", "chartMlEmpty", "hist-ml-data", "rgb(25, 135, 84)", "rgba(25, 135, 84, 0.15)");
+})();
+</script>
+{% endblock %}

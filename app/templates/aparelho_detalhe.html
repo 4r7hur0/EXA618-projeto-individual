@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ a.modelo }} — Ficha{% endblock %}
+{% block content %}
+<p><a href="/">&larr; Início</a> · <a href="/aparelhos">Fichas salvas</a></p>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <h1 class="h3">{{ a.modelo }}</h1>
+  <form method="post" action="/aparelhos/{{ a.id }}/excluir" onsubmit="return confirm('Excluir esta ficha?');">
+    <button type="submit" class="btn btn-outline-danger btn-sm">Excluir</button>
+  </form>
+</div>
+
+<p class="text-muted small">Busca: {{ a.termo_busca }} · Extraído: {{ a.extraido_em_texto or '—' }} · Salvo em: {{ a.criado_em.strftime('%d/%m/%Y %H:%M UTC') }}</p>
+{% if a.imagem_url %}
+<div class="mb-4 text-center">
+  <img src="{{ a.imagem_url }}" alt="{{ a.modelo }}" class="img-fluid rounded border shadow-sm" style="max-height:280px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
+</div>
+{% endif %}
+{% if a.url_fonte %}<p><a href="{{ a.url_fonte }}" target="_blank" rel="noopener">Abrir fonte (Mais Celular)</a></p>{% endif %}
+
+<div class="row g-3">
+  <div class="col-md-6"><div class="card p-3"><strong>AnTuTu</strong><br>{{ a.antutu or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Geekbench</strong><br>{{ a.geekbench or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Chipset</strong><br>{{ a.processador or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Sistema</strong><br>{{ a.sistema_operacional or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>RAM</strong><br>{{ a.memoria_ram or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Armazenamento</strong><br>{{ a.armazenamento or '—' }}</div></div>
+  <div class="col-12"><div class="card p-3"><strong>Tela</strong><br>{{ a.tela or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Câmera traseira</strong><br>{{ a.camera_traseira or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Câmera frontal</strong><br>{{ a.camera_frontal or '—' }}</div></div>
+  <div class="col-12"><div class="card p-3"><strong>Conectividade</strong><br>{{ a.conectividade or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Bateria</strong><br>{{ a.bateria or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Carregamento</strong><br>{{ a.carregamento or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Dimensões</strong><br>{{ a.dimensoes or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Peso</strong><br>{{ a.peso or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Áudio</strong><br>{{ a.audio or '—' }}</div></div>
+  <div class="col-md-6"><div class="card p-3"><strong>Biometria</strong><br>{{ a.biometria or '—' }}</div></div>
+</div>
+
+{% if a.especificacoes_json %}
+<h2 class="h5 mt-4">Pares brutos (JSON)</h2>
+<div class="table-responsive">
+  <table class="table table-sm table-striped bg-white">
+    <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+    <tbody>
+      {% for k, v in a.especificacoes_json.items() %}
+      <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

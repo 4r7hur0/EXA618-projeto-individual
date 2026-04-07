@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: teste-parser
+    env: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: teste-parser-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: teste-parser-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: teste-parser-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: teste-parser-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: teste-parser-db
+          property: password
+      - key: LOG_LEVEL
+        value: INFO
+      # Quantas ofertas buscar por consulta (1–8)
+      - key: OFERTAS_POR_BUSCA
+        value: "4"
+      # Timeout do Mais Celular (ms)
+      - key: MAISCELULAR_NAV_TIMEOUT_MS
+        value: "90000"
+      # Em produção não use reload
+      - key: WEB_RELOAD
+        value: "0"
+
+databases:
+  - name: teste-parser-db
+    plan: free
+
