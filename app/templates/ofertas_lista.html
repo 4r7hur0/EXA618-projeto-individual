@@ -4,7 +4,7 @@
 <h1 class="h3 mb-4">Ofertas (Amazon / Mercado Livre)</h1>
 <div class="table-responsive">
   <table class="table table-hover bg-white shadow-sm">
-    <thead><tr><th>ID</th><th>Origem</th><th>Produto</th><th>Preço</th><th>Salvo em</th></tr></thead>
+    <thead><tr><th>ID</th><th>Origem</th><th>Produto</th><th>Preço</th><th>Extraído em</th><th>Salvo em</th></tr></thead>
     <tbody>
       {% for o in ofertas %}
       <tr>
@@ -12,10 +12,11 @@
         <td><span class="badge bg-secondary">{{ o.origem }}</span></td>
         <td><a href="/ofertas/{{ o.id }}">{{ o.nome_produto[:80] }}{% if o.nome_produto|length > 80 %}…{% endif %}</a></td>
         <td>{{ o.preco or '—' }}</td>
+        <td>{{ o.extraido_em_texto or '—' }}</td>
         <td>{{ o.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="text-muted">Nenhum registro.</td></tr>
+      <tr><td colspan="6" class="text-muted">Nenhum registro.</td></tr>
       {% endfor %}
     </tbody>
   </table>

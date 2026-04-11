@@ -28,6 +28,8 @@ services:
         fromDatabase:
           name: teste-parser-db
           property: password
+      - key: DB_SSL
+        value: "true"
       - key: LOG_LEVEL
         value: INFO
       # Quantas ofertas buscar por consulta (1–8)

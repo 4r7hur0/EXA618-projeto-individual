@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}{{ a.modelo }} — Ficha{% endblock %}
+{% block title %}{{ a.modelo | sem_emojis }} — Ficha{% endblock %}
 {% block content %}
 <p><a href="/">&larr; Início</a> · <a href="/aparelhos">Fichas salvas</a></p>
 
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-  <h1 class="h3">{{ a.modelo }}</h1>
+  <h1 class="h3">{{ a.modelo | sem_emojis }}</h1>
   <form method="post" action="/aparelhos/{{ a.id }}/excluir" onsubmit="return confirm('Excluir esta ficha?');">
     <button type="submit" class="btn btn-outline-danger btn-sm">Excluir</button>
   </form>
@@ -13,7 +13,7 @@
 <p class="text-muted small">Busca: {{ a.termo_busca }} · Extraído: {{ a.extraido_em_texto or '—' }} · Salvo em: {{ a.criado_em.strftime('%d/%m/%Y %H:%M UTC') }}</p>
 {% if a.imagem_url %}
 <div class="mb-4 text-center">
-  <img src="{{ a.imagem_url }}" alt="{{ a.modelo }}" class="img-fluid rounded border shadow-sm" style="max-height:280px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
+  <img src="{{ a.imagem_url }}" alt="{{ a.modelo | sem_emojis }}" class="img-fluid rounded border shadow-sm" style="max-height:280px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
 </div>
 {% endif %}
 {% if a.url_fonte %}<p><a href="{{ a.url_fonte }}" target="_blank" rel="noopener">Abrir fonte (Mais Celular)</a></p>{% endif %}

@@ -4,17 +4,18 @@
 <h1 class="h3 mb-4">Fichas técnicas salvas</h1>
 <div class="table-responsive">
   <table class="table table-hover bg-white shadow-sm">
-    <thead><tr><th>ID</th><th>Modelo</th><th>Busca</th><th>Salvo em</th></tr></thead>
+    <thead><tr><th>ID</th><th>Modelo</th><th>Busca</th><th>Extraído em</th><th>Salvo em</th></tr></thead>
     <tbody>
       {% for a in aparelhos %}
       <tr>
         <td>{{ a.id }}</td>
-        <td><a href="/aparelhos/{{ a.id }}">{{ a.modelo }}</a></td>
+        <td><a href="/aparelhos/{{ a.id }}">{{ a.modelo | sem_emojis }}</a></td>
         <td>{{ a.termo_busca }}</td>
+        <td>{{ a.extraido_em_texto or '—' }}</td>
         <td>{{ a.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="text-muted">Nenhum registro.</td></tr>
+      <tr><td colspan="5" class="text-muted">Nenhum registro.</td></tr>
       {% endfor %}
     </tbody>
   </table>

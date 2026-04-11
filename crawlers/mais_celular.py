@@ -188,10 +188,12 @@ def _extrair_geekbench(texto: str) -> str | None:
 
 
 def _limpar_modelo_h1(texto: str) -> str:
+    from app.texto_limpo import sem_emojis
+
     s = re.sub(r"Ficha\s*T[eé]cnica", "", texto, flags=re.I)
     s = re.sub(r"\)([A-Za-zÀ-ÿ])", r") \1", s)
     s = re.sub(r"\s+", " ", s).strip()
-    return s
+    return sem_emojis(s) or ""
 
 
 def _buscar_valor_chipset_tabela(pares: dict[str, str]) -> str | None:

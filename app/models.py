@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -77,26 +77,4 @@ class OfertaMercado(Base):
 
     aparelho: Mapped["Aparelho | None"] = relationship(
         "Aparelho", back_populates="ofertas"
-    )
-    historicos_precos: Mapped[list["PrecoHistorico"]] = relationship(
-        "PrecoHistorico", back_populates="oferta", passive_deletes=True
-    )
-
-
-class PrecoHistorico(Base):
-    __tablename__ = "precos_historico"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    oferta_mercado_id: Mapped[int] = mapped_column(
-        ForeignKey("ofertas_mercado.id", ondelete="CASCADE"),
-        index=True,
-    )
-    preco_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
-    preco_valor: Mapped[float | None] = mapped_column(Float, nullable=True)
-    registrado_em: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, index=True
-    )
-
-    oferta: Mapped["OfertaMercado"] = relationship(
-        "OfertaMercado", back_populates="historicos_precos"
     )

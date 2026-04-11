@@ -4,30 +4,35 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.models import Aparelho, OfertaMercado
-from app.preco_util import cutoff_datetime, normalizar_termo_cache
+from app.preco_util import normalizar_termo_cache
+from app.texto_limpo import sem_emojis
+
+
+def _s(v):
+    return sem_emojis(v) if isinstance(v, str) else v
 
 
 def aparelho_para_dict(a: Aparelho) -> dict:
     return {
-        "modelo": a.modelo,
-        "antutu": a.antutu,
-        "geekbench": a.geekbench,
-        "processador": a.processador,
-        "sistema_operacional": a.sistema_operacional,
-        "memoria_ram": a.memoria_ram,
-        "armazenamento": a.armazenamento,
-        "tela": a.tela,
-        "camera_traseira": a.camera_traseira,
-        "camera_frontal": a.camera_frontal,
-        "conectividade": a.conectividade,
-        "bateria": a.bateria,
-        "carregamento": a.carregamento,
-        "dimensoes": a.dimensoes,
-        "peso": a.peso,
-        "audio": a.audio,
-        "biometria": a.biometria,
+        "modelo": _s(a.modelo),
+        "antutu": _s(a.antutu),
+        "geekbench": _s(a.geekbench),
+        "processador": _s(a.processador),
+        "sistema_operacional": _s(a.sistema_operacional),
+        "memoria_ram": _s(a.memoria_ram),
+        "armazenamento": _s(a.armazenamento),
+        "tela": _s(a.tela),
+        "camera_traseira": _s(a.camera_traseira),
+        "camera_frontal": _s(a.camera_frontal),
+        "conectividade": _s(a.conectividade),
+        "bateria": _s(a.bateria),
+        "carregamento": _s(a.carregamento),
+        "dimensoes": _s(a.dimensoes),
+        "peso": _s(a.peso),
+        "audio": _s(a.audio),
+        "biometria": _s(a.biometria),
         "especificacoes_todas": a.especificacoes_json or {},
-        "data": a.extraido_em_texto,
+        "data": _s(a.extraido_em_texto),
         "url": a.url_fonte,
         "imagem_url": a.imagem_url,
     }
@@ -35,40 +40,36 @@ def aparelho_para_dict(a: Aparelho) -> dict:
 
 def oferta_para_dict(o: OfertaMercado) -> dict:
     d: dict = {
-        "nome": o.nome_produto,
-        "memoria": o.memoria,
-        "preco": o.preco,
+        "nome": _s(o.nome_produto),
+        "memoria": _s(o.memoria),
+        "preco": _s(o.preco),
         "link": o.link,
         "imagem_url": o.imagem_url,
     }
     if o.origem == "amazon":
-        d["data_extracao"] = o.extraido_em_texto
+        d["data_extracao"] = _s(o.extraido_em_texto)
     else:
-        d["data"] = o.extraido_em_texto
-        d["vendedor"] = o.vendedor
-        d["reputacao"] = o.reputacao
-        d["reputacao_nivel"] = o.reputacao_nivel
-        d["vendas_aprox"] = o.vendas_aprox
+        d["data"] = _s(o.extraido_em_texto)
+        d["vendedor"] = _s(o.vendedor)
+        d["reputacao"] = _s(o.reputacao)
+        d["reputacao_nivel"] = _s(o.reputacao_nivel)
+        d["vendas_aprox"] = _s(o.vendas_aprox)
     return d
 
 
-def buscar_tripla_em_cache(
+def buscar_aparelho_e_ofertas_no_banco(
     db: Session, termo: str, *, limite_ofertas: int = 4
 ) -> tuple[Aparelho, list[OfertaMercado], list[OfertaMercado]] | None:
     """
-    Retorna (aparelho, ofertas_amazon, ofertas_ml) se existir busca completa recente
-    com o mesmo termo normalizado. Ordem das ofertas = ordem de inserção (melhor primeiro).
+    Retorna (aparelho, ofertas_amazon, ofertas_ml) se existir aparelho salvo com o mesmo
+    termo normalizado (cadastro mais recente). Ofertas podem ser listas vazias.
     """
     cap = max(1, min(int(limite_ofertas), 24))
     key = normalizar_termo_cache(termo)
-    lim = cutoff_datetime()
 
     ap = (
         db.query(Aparelho)
-        .filter(
-            Aparelho.termo_normalizado == key,
-            Aparelho.criado_em >= lim,
-        )
+        .filter(Aparelho.termo_normalizado == key)
         .order_by(Aparelho.criado_em.desc())
         .first()
     )
@@ -95,6 +96,4 @@ def buscar_tripla_em_cache(
         .limit(cap)
         .all()
     )
-    if not oa_rows or not ol_rows:
-        return None
     return ap, oa_rows, ol_rows
