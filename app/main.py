@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -106,6 +106,53 @@ def _template_resultado(
             "ml_erro": ml_erro,
         },
     )
+
+
+def _api_busca_no_banco(db: Session, termo: str, *, limite_ofertas: int | None):
+    t = (termo or "").strip()
+    if not t:
+        return None, {"detail": "Informe o termo de busca."}, 400
+    cap = _limite_ofertas_por_busca() if limite_ofertas is None else max(1, min(int(limite_ofertas), 8))
+    tripla = buscar_aparelho_e_ofertas_no_banco(db, t, limite_ofertas=cap)
+    if not tripla:
+        return None, {"detail": "Este aparelho não está na base de dados."}, 404
+    ap, oa_rows, ol_rows = tripla
+    return (
+        {
+            "termo": t,
+            "limite_ofertas": cap,
+            "mc": aparelho_para_dict(ap),
+            "amazon": [oferta_para_dict(o) for o in oa_rows],
+            "mercadolivre": [oferta_para_dict(o) for o in ol_rows],
+        },
+        None,
+        200,
+    )
+
+
+@app.get("/api/buscar", tags=["API"], summary="Buscar no banco (JSON)")
+def api_buscar_get(
+    termo: str,
+    limite_ofertas: int | None = None,
+    db: Session = Depends(get_db),
+):
+    payload, err, code = _api_busca_no_banco(db, termo, limite_ofertas=limite_ofertas)
+    if err:
+        raise HTTPException(status_code=code, detail=err["detail"])
+    return payload
+
+
+@app.post("/api/buscar", tags=["API"], summary="Buscar no banco (JSON)")
+def api_buscar_post(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+):
+    termo = body.get("termo") if isinstance(body, dict) else None
+    limite = body.get("limite_ofertas") if isinstance(body, dict) else None
+    payload, err, code = _api_busca_no_banco(db, termo or "", limite_ofertas=limite)
+    if err:
+        raise HTTPException(status_code=code, detail=err["detail"])
+    return payload
 
 
 @app.post(
