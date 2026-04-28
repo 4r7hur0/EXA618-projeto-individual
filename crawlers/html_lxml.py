@@ -83,7 +83,7 @@ def escolher_links_ml_listagem(
     html: str, nome_produto: str, *, max_links: int = 12
 ) -> list[str]:
     """Vários links de anúncios (melhor score primeiro), URLs únicas."""
-    cap = max(1, min(int(max_links), 24))
+    cap = max(1, min(int(max_links), 60))
     candidatos = _candidatos_ml_listagem(html, nome_produto)
     if not candidatos:
         return []
@@ -180,7 +180,7 @@ def escolher_links_amazon_busca(
         if full not in melhor_url or sc > melhor_url[full]:
             melhor_url[full] = sc
     ordenados = sorted(melhor_url.items(), key=lambda x: -x[1])
-    cap = max(1, min(int(max_links), 24))
+    cap = max(1, min(int(max_links), 60))
     return [u for u, _sc in ordenados[:cap]]
 
 

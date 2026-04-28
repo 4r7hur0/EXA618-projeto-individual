@@ -32,9 +32,9 @@ services:
         value: "true"
       - key: LOG_LEVEL
         value: INFO
-      # Quantas ofertas buscar por consulta (1–8)
+      # Ofertas por loja por termo (1–32); crawler prioriza GB distintos
       - key: OFERTAS_POR_BUSCA
-        value: "4"
+        value: "8"
       # Timeout do Mais Celular (ms)
       - key: MAISCELULAR_NAV_TIMEOUT_MS
         value: "90000"

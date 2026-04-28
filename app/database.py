@@ -144,6 +144,26 @@ def _drop_tabela_precos_historico_uma_vez():
         )
 
 
+def zerar_dados_catalogo() -> None:
+    """
+    Apaga todas as linhas de ofertas e aparelhos e reinicia sequências de id.
+    PostgreSQL apenas (mesmo backend de `build_database_url`).
+    """
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
+    need = ("ofertas_mercado", "aparelhos")
+    if not all(t in tables for t in need):
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "TRUNCATE TABLE ofertas_mercado, aparelhos RESTART IDENTITY CASCADE"
+            )
+        )
+
+
 def init_db():
     import app.models  # noqa: F401
 

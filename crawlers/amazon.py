@@ -5,9 +5,15 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 
+from app.filtros_api import capacidade_para_gb, parece_aparelho, preco_brl_para_float
+
 from crawlers.filtros_produto import titulo_atende_tokens_exatos
 from crawlers.html_lxml import escolher_links_amazon_busca
 from crawlers.imagem_produto import extrair_imagem_amazon
+from crawlers.ofertas_diversidade import (
+    limite_ofertas_loja,
+    selecionar_ofertas_armazenamento_diverso,
+)
 from crawlers.playwright_fast import aplicar_bloqueio_recursos_leves
 
 
@@ -73,12 +79,12 @@ def extrair_preco_amazon(soup: BeautifulSoup) -> str:
 
 
 def _limite_amazon_links_candidatos(max_produtos: int) -> int:
-    n = max(1, min(int(max_produtos), 8))
-    return min(24, max(n * 4, n + 6))
+    n = limite_ofertas_loja(max_produtos)
+    return min(60, max(n * 6, n + 12))
 
 
 async def crawler_amazon_essencial(nome_produto, max_produtos: int = 4):
-    max_produtos = max(1, min(int(max_produtos), 8))
+    max_produtos = limite_ofertas_loja(max_produtos)
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     base_url = "https://www.amazon.com.br"
     search_url = f"{base_url}/s?k={nome_produto.replace(' ', '+')}"
@@ -105,12 +111,10 @@ async def crawler_amazon_essencial(nome_produto, max_produtos: int = 4):
                 await browser.close()
                 return "❌ Produto não encontrado."
 
-            resultados: list[dict] = []
+            candidatos: list[dict] = []
             data_extracao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
             for link_final in links:
-                if len(resultados) >= max_produtos:
-                    break
                 try:
                     await page.goto(link_final, wait_until="domcontentloaded", timeout=60000)
                     try:
@@ -150,12 +154,22 @@ async def crawler_amazon_essencial(nome_produto, max_produtos: int = 4):
                     preco = extrair_preco_amazon(soup)
                     img_amz = extrair_imagem_amazon(soup)
 
-                    resultados.append(
+                    mem_join = (
+                        ", ".join(sorted(list(set(memorias))))
+                        if memorias
+                        else "Não identificada"
+                    )
+                    if not parece_aparelho(
+                        nome_completo,
+                        preco_valor=preco_brl_para_float(preco),
+                        oferta_memoria_gb=capacidade_para_gb(mem_join),
+                    ):
+                        continue
+
+                    candidatos.append(
                         {
                             "nome": nome_completo,
-                            "memoria": ", ".join(sorted(list(set(memorias))))
-                            if memorias
-                            else "Não identificada",
+                            "memoria": mem_join,
                             "preco": preco,
                             "link": link_final,
                             "imagem_url": img_amz,
@@ -167,12 +181,12 @@ async def crawler_amazon_essencial(nome_produto, max_produtos: int = 4):
 
             await browser.close()
 
-            if not resultados:
+            if not candidatos:
                 return (
                     "❌ Nenhum produto da lista passou na validação do título "
                     f"para a busca '{nome_produto}'."
                 )
-            return resultados
+            return selecionar_ofertas_armazenamento_diverso(candidatos, max_produtos)
 
         except Exception as e:
             await browser.close()

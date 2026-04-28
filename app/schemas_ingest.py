@@ -17,9 +17,10 @@ class IngestAparelhosRequest(BaseModel):
     ofertas_por_termo: int | None = Field(
         None,
         ge=1,
-        le=8,
-        description="Quantas ofertas buscar na Amazon e no ML por termo. "
-        "Se omitido, usa a variável OFERTAS_POR_BUSCA (padrão 4).",
+        le=32,
+        description="Quantas ofertas guardar por loja (Amazon e ML) por termo; o crawler varre "
+            "mais PDPs e prioriza variantes de GB diferentes. Se omitido, usa OFERTAS_POR_BUSCA "
+            "(padrão 8).",
     )
 
     @field_validator("termos", mode="before")

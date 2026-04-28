@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -16,12 +16,15 @@ from app.config import configure_logging
 from app.database import get_db, init_db
 from app.ingest_crawlers import ingerir_um_termo
 from app.models import Aparelho, OfertaMercado
+from app.schemas_filtros import OfertasFiltrosPost
 from app.schemas_ingest import (
     IngestAparelhosRequest,
     IngestAparelhosResponse,
     IngestItemResult,
 )
+from app.filtros_api import capacidade_para_gb, parece_aparelho, preco_brl_para_float
 from app.texto_limpo import sem_emojis
+from crawlers.ofertas_diversidade import OFERTAS_MAX_POR_LOJA
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -38,8 +41,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Catálogo de aparelhos",
     description=(
-        "Interface web e API JSON. Documentação interativa (Swagger UI) em **`/docs`** "
-        "e ReDoc em **`/redoc`**."
+        "Interface web e API de filtros. Documentação (Swagger UI) em **`/docs`** e ReDoc em **`/redoc`**."
     ),
     lifespan=lifespan,
     openapi_tags=[
@@ -48,7 +50,7 @@ app = FastAPI(
             "description": "Ingestão em lote: pesquisa nos sites e grava ficha + ofertas no banco.",
         },
         {"name": "Web", "description": "Páginas HTML."},
-        {"name": "API", "description": "Endpoints JSON diversos."},
+        {"name": "API", "description": "Filtro de ofertas (JSON)."},
     ],
 )
 
@@ -76,10 +78,10 @@ def pagina_inicial(request: Request):
 
 def _limite_ofertas_por_busca() -> int:
     try:
-        n = int(os.environ.get("OFERTAS_POR_BUSCA", "4").strip())
+        n = int(os.environ.get("OFERTAS_POR_BUSCA", "8").strip())
     except ValueError:
-        n = 4
-    return max(1, min(n, 8))
+        n = 8
+    return max(1, min(n, OFERTAS_MAX_POR_LOJA))
 
 
 def _template_resultado(
@@ -108,51 +110,161 @@ def _template_resultado(
     )
 
 
-def _api_busca_no_banco(db: Session, termo: str, *, limite_ofertas: int | None):
-    t = (termo or "").strip()
-    if not t:
-        return None, {"detail": "Informe o termo de busca."}, 400
-    cap = _limite_ofertas_por_busca() if limite_ofertas is None else max(1, min(int(limite_ofertas), 8))
-    tripla = buscar_aparelho_e_ofertas_no_banco(db, t, limite_ofertas=cap)
-    if not tripla:
-        return None, {"detail": "Este aparelho não está na base de dados."}, 404
-    ap, oa_rows, ol_rows = tripla
-    return (
-        {
-            "termo": t,
-            "limite_ofertas": cap,
-            "mc": aparelho_para_dict(ap),
-            "amazon": [oferta_para_dict(o) for o in oa_rows],
-            "mercadolivre": [oferta_para_dict(o) for o in ol_rows],
+def _filtrar_ofertas(
+    # aliases aceitos: marketplace/origem e preco_de/preco_min e preco_ate/preco_max
+    marketplace: str | None = None,
+    origem: str | None = None,
+    preco_de: float | None = None,
+    preco_min: float | None = None,
+    preco_ate: float | None = None,
+    preco_max: float | None = None,
+    # memoria_* agora é RAM (Aparelho.memoria_ram). Para a "memória" da oferta (ex.: 128GB),
+    # use oferta_memoria_*_gb.
+    memoria_min_gb: int | None = None,
+    memoria_max_gb: int | None = None,
+    oferta_memoria_min_gb: int | None = None,
+    oferta_memoria_max_gb: int | None = None,
+    armazenamento_min_gb: int | None = None,
+    armazenamento_max_gb: int | None = None,
+    somente_aparelhos: bool = True,
+    limite: int | None = 50,
+    *,
+    db: Session,
+):
+    """
+    Filtros:
+    - origem (ou marketplace): amazon | mercadolivre
+    - preco_min / preco_max (ou preco_de / preco_ate): reais (float)
+    - memoria_min_gb / memoria_max_gb: RAM do aparelho vinculado (Aparelho.memoria_ram)
+    - oferta_memoria_*_gb: texto de armazenamento na oferta (OfertaMercado.memoria), ex. 128GB
+    - armazenamento_*_gb: capacidade **da variante** (prioriza texto da oferta; senão ficha do aparelho)
+    """
+    cap = 50 if limite is None else max(1, min(int(limite), 200))
+    # resolve aliases
+    origem_final = (origem or marketplace)
+    preco_min_final = preco_min if preco_min is not None else preco_de
+    preco_max_final = preco_max if preco_max is not None else preco_ate
+    q = db.query(OfertaMercado).outerjoin(Aparelho, OfertaMercado.aparelho_id == Aparelho.id)
+    if origem_final:
+        o = origem_final.strip().lower()
+        if o not in ("amazon", "mercadolivre"):
+            raise HTTPException(status_code=400, detail="origem deve ser amazon ou mercadolivre")
+        q = q.filter(OfertaMercado.origem == o)
+    # Amostra recente maior que cap: muitos registros são descartados (preço ilegível, parece_aparelho, filtros RAM).
+    fetch_n = min(3000, max(100, cap * 25))
+    q = q.order_by(OfertaMercado.criado_em.desc()).limit(fetch_n)
+
+    rows = q.all()
+    out: list[dict] = []
+    for r in rows:
+        pv = preco_brl_para_float(r.preco)
+        oferta_mem_gb = capacidade_para_gb(r.memoria)
+        if somente_aparelhos and not parece_aparelho(
+            r.nome_produto, preco_valor=pv, oferta_memoria_gb=oferta_mem_gb
+        ):
+            continue
+        if preco_min_final is not None and (pv is None or pv < float(preco_min_final)):
+            continue
+        if preco_max_final is not None and (pv is None or pv > float(preco_max_final)):
+            continue
+
+        # RAM vem do aparelho vinculado
+        ram_gb = capacidade_para_gb(r.aparelho.memoria_ram) if r.aparelho else None
+        if memoria_min_gb is not None and (ram_gb is None or ram_gb < int(memoria_min_gb)):
+            continue
+        if memoria_max_gb is not None and (ram_gb is None or ram_gb > int(memoria_max_gb)):
+            continue
+
+        # "memoria" da oferta costuma ser armazenamento (ex.: 128GB)
+        if oferta_memoria_min_gb is not None and (
+            oferta_mem_gb is None or oferta_mem_gb < int(oferta_memoria_min_gb)
+        ):
+            continue
+        if oferta_memoria_max_gb is not None and (
+            oferta_mem_gb is None or oferta_mem_gb > int(oferta_memoria_max_gb)
+        ):
+            continue
+
+        ag_ficha = capacidade_para_gb(r.aparelho.armazenamento) if r.aparelho else None
+        # Variante vendida (ex.: 64 GB no título) prevalece sobre a ficha agregada (ex.: "até 256 GB").
+        ag = oferta_mem_gb if oferta_mem_gb is not None else ag_ficha
+        if armazenamento_min_gb is not None and (ag is None or ag < int(armazenamento_min_gb)):
+            continue
+        if armazenamento_max_gb is not None and (ag is None or ag > int(armazenamento_max_gb)):
+            continue
+
+        d = oferta_para_dict(r)
+        d["id"] = r.id
+        d["origem"] = r.origem
+        d["preco_valor"] = pv
+        d["memoria_ram_gb"] = ram_gb
+        d["oferta_memoria_gb"] = oferta_mem_gb
+        d["armazenamento_gb"] = ag
+        if ag_ficha is not None and ag_ficha != ag:
+            d["armazenamento_ficha_gb"] = ag_ficha
+        if r.aparelho:
+            d["aparelho"] = {
+                "id": r.aparelho.id,
+                "modelo": sem_emojis(r.aparelho.modelo) or r.aparelho.modelo,
+                "armazenamento": sem_emojis(r.aparelho.armazenamento) if r.aparelho.armazenamento else None,
+                "memoria_ram": sem_emojis(r.aparelho.memoria_ram) if r.aparelho.memoria_ram else None,
+            }
+        out.append(d)
+        if len(out) >= cap:
+            break
+
+    return {
+        "filtros": {
+            "marketplace": marketplace,
+            "origem": origem,
+            "preco_de": preco_de,
+            "preco_min": preco_min,
+            "preco_ate": preco_ate,
+            "preco_max": preco_max,
+            "memoria_min_gb": memoria_min_gb,
+            "memoria_max_gb": memoria_max_gb,
+            "oferta_memoria_min_gb": oferta_memoria_min_gb,
+            "oferta_memoria_max_gb": oferta_memoria_max_gb,
+            "armazenamento_min_gb": armazenamento_min_gb,
+            "armazenamento_max_gb": armazenamento_max_gb,
+            "somente_aparelhos": somente_aparelhos,
+            "limite": cap,
         },
-        None,
-        200,
+        "total": len(out),
+        "items": out,
+    }
+
+
+@app.post("/api/ofertas/filtros", tags=["API"], summary="Filtrar ofertas (POST JSON opcional)")
+def api_filtrar_ofertas_opcional(body: OfertasFiltrosPost, db: Session = Depends(get_db)):
+    """
+    Corpo JSON com filtros opcionais; omita campos que não importam (pode enviar objeto vazio).
+
+    - **marketplace**: `amazon` ou `mercadolivre` (omitido = ambos)
+
+    - **preco_max**: faixa de preço **de 0 até** esse valor (reais, inclusive). Ofertas sem preço
+      parseável ficam de fora.
+
+    - **memoria_ram_gb**: **apenas** ofertas cuja RAM (ficha do aparelho) seja **exatamente** esse
+      valor em GB.
+
+    - **armazenamento_gb**: **apenas** ofertas cuja capacidade seja **exatamente** esse valor (GB);
+      prioriza a variante da oferta, senão a ficha.
+    """
+    mem_min = mem_max = body.memoria_ram_gb
+    arm_min = arm_max = body.armazenamento_gb
+    return _filtrar_ofertas(
+        marketplace=body.marketplace,
+        origem=body.marketplace,
+        preco_max=body.preco_max,
+        memoria_min_gb=mem_min,
+        memoria_max_gb=mem_max,
+        armazenamento_min_gb=arm_min,
+        armazenamento_max_gb=arm_max,
+        somente_aparelhos=True,
+        limite=body.limite,
+        db=db,
     )
-
-
-@app.get("/api/buscar", tags=["API"], summary="Buscar no banco (JSON)")
-def api_buscar_get(
-    termo: str,
-    limite_ofertas: int | None = None,
-    db: Session = Depends(get_db),
-):
-    payload, err, code = _api_busca_no_banco(db, termo, limite_ofertas=limite_ofertas)
-    if err:
-        raise HTTPException(status_code=code, detail=err["detail"])
-    return payload
-
-
-@app.post("/api/buscar", tags=["API"], summary="Buscar no banco (JSON)")
-def api_buscar_post(
-    body: dict = Body(...),
-    db: Session = Depends(get_db),
-):
-    termo = body.get("termo") if isinstance(body, dict) else None
-    limite = body.get("limite_ofertas") if isinstance(body, dict) else None
-    payload, err, code = _api_busca_no_banco(db, termo or "", limite_ofertas=limite)
-    if err:
-        raise HTTPException(status_code=code, detail=err["detail"])
-    return payload
 
 
 @app.post(

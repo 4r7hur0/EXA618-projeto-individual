@@ -6,24 +6,32 @@ import os
 
 from sqlalchemy.orm import Session
 
+from app.filtros_api import (
+    capacidade_para_gb,
+    ficha_maiscelular_tem_especificacoes,
+    parece_aparelho,
+    preco_brl_para_float,
+)
 from app.persist import (
     aparelho_from_mais_celular,
     oferta_from_amazon,
     oferta_from_mercadolivre,
 )
+from app.preco_util import normalizar_termo_cache
 from crawlers.amazon import crawler_amazon_essencial
 from crawlers.mais_celular import crawler_maiscelular_blindado
 from crawlers.mercado_livre import crawler_mercadolivre_completo
+from crawlers.ofertas_diversidade import OFERTAS_MAX_POR_LOJA
 
 
 def _limite_ofertas(n_override: int | None) -> int:
     if n_override is not None:
-        return max(1, min(int(n_override), 8))
+        return max(1, min(int(n_override), OFERTAS_MAX_POR_LOJA))
     try:
-        n = int(os.environ.get("OFERTAS_POR_BUSCA", "4").strip())
+        n = int(os.environ.get("OFERTAS_POR_BUSCA", "8").strip())
     except ValueError:
-        n = 4
-    return max(1, min(n, 8))
+        n = 8
+    return max(1, min(n, OFERTAS_MAX_POR_LOJA))
 
 
 def _normalizar_saida_mc(val):
@@ -86,6 +94,14 @@ async def ingerir_um_termo(
     n = _limite_ofertas(ofertas_por_termo)
     erros: list[str] = []
 
+    key = normalizar_termo_cache(termo)
+    ap_existente = (
+        db.query(Aparelho)
+        .filter(Aparelho.termo_normalizado == key)
+        .order_by(Aparelho.criado_em.desc())
+        .first()
+    )
+
     if _crawler_paralelo():
         mc_raw, amz_raw, ml_raw = await asyncio.gather(
             _executar_crawler_isolado(crawler_maiscelular_blindado, termo),
@@ -121,26 +137,66 @@ async def ingerir_um_termo(
     n_amz = 0
     n_ml = 0
 
+    mc_specs_ok = bool(mc and ficha_maiscelular_tem_especificacoes(mc))
+    if mc and not mc_specs_ok:
+        erros.append(
+            "Mais Celular: ficha sem especificações suficientes (não gravado)."
+        )
+        mc = None
+
+    def _oferta_eh_aparelho(item: dict) -> bool:
+        nome = item.get("nome") or ""
+        preco_txt = item.get("preco")
+        mem_txt = item.get("memoria")
+        return parece_aparelho(
+            nome,
+            preco_valor=preco_brl_para_float(preco_txt),
+            oferta_memoria_gb=capacidade_para_gb(mem_txt),
+        )
+
+    if amz_list:
+        amz_list = [x for x in amz_list if _oferta_eh_aparelho(x)]
+    if ml_list:
+        ml_list = [x for x in ml_list if _oferta_eh_aparelho(x)]
+
     try:
-        if mc:
+        # Se já existe aparelho no banco para este termo, reusa (anexa ofertas novas).
+        if ap_existente is not None:
+            aparelho_id = ap_existente.id
+        elif mc:
             a = aparelho_from_mais_celular(termo, mc)
             db.add(a)
             db.flush()
             aparelho_id = a.id
-        if amz_list:
-            for item in amz_list:
-                oa = oferta_from_amazon(termo, item)
-                oa.aparelho_id = aparelho_id
-                db.add(oa)
-                db.flush()
-                n_amz += 1
-        if ml_list:
-            for item in ml_list:
-                ol = oferta_from_mercadolivre(termo, item)
-                ol.aparelho_id = aparelho_id
-                db.add(ol)
-                db.flush()
-                n_ml += 1
+        if aparelho_id is not None:
+            if amz_list:
+                for item in amz_list:
+                    oa = oferta_from_amazon(termo, item)
+                    oa.aparelho_id = aparelho_id
+                    db.add(oa)
+                    db.flush()
+                    n_amz += 1
+            if ml_list:
+                for item in ml_list:
+                    ol = oferta_from_mercadolivre(termo, item)
+                    ol.aparelho_id = aparelho_id
+                    db.add(ol)
+                    db.flush()
+                    n_ml += 1
+        else:
+            # Sem ficha e sem aparelho existente: ainda assim salva ofertas sem vínculo.
+            if amz_list:
+                for item in amz_list:
+                    oa = oferta_from_amazon(termo, item)
+                    db.add(oa)
+                    db.flush()
+                    n_amz += 1
+            if ml_list:
+                for item in ml_list:
+                    ol = oferta_from_mercadolivre(termo, item)
+                    db.add(ol)
+                    db.flush()
+                    n_ml += 1
         db.commit()
     except Exception as e:
         db.rollback()
@@ -154,7 +210,7 @@ async def ingerir_um_termo(
             erros=erros,
         )
 
-    ok = bool(mc) or n_amz > 0 or n_ml > 0
+    ok = (aparelho_id is not None) or (n_amz + n_ml > 0)
     return IngestItemResult(
         termo=termo,
         ok=ok,
