@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from app.cache_busca import (
 from app.config import configure_logging
 from app.database import get_db, init_db
 from app.ingest_crawlers import ingerir_um_termo
+from app.routes_crawlers import router as crawlers_router
 from app.models import Aparelho, OfertaMercado
 from app.schemas_filtros import OfertasFiltrosPost
 from app.schemas_ingest import (
@@ -46,13 +47,19 @@ app = FastAPI(
     lifespan=lifespan,
     openapi_tags=[
         {
+            "name": "Crawlers",
+            "description": "Um endpoint por loja: executa só aquele crawler e grava no banco.",
+        },
+        {
             "name": "Cadastro",
-            "description": "Ingestão em lote: pesquisa nos sites e grava ficha + ofertas no banco.",
+            "description": "Ingestão em lote: os três crawlers em sequência por termo.",
         },
         {"name": "Web", "description": "Páginas HTML."},
-        {"name": "API", "description": "Filtro de ofertas (JSON)."},
+        {"name": "API", "description": "Consulta e filtro de ofertas (JSON)."},
     ],
 )
+
+app.include_router(crawlers_router)
 
 
 @app.get(
@@ -108,6 +115,58 @@ def _template_resultado(
             "ml_erro": ml_erro,
         },
     )
+
+
+def _coerce_limite_ofertas(v) -> int | None:
+    if v is None or v == "":
+        return None
+    if isinstance(v, bool):
+        raise HTTPException(status_code=400, detail="limite_ofertas deve ser um inteiro.")
+    if isinstance(v, int):
+        return max(1, min(int(v), 32))
+    if isinstance(v, float):
+        return max(1, min(int(v), 32))
+    try:
+        return max(1, min(int(str(v).strip()), 32))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="limite_ofertas deve ser um inteiro.")
+
+
+@app.post("/api/buscar", tags=["API"], summary="Buscar no banco (JSON)")
+def api_buscar_post(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Busca **no banco** por termo (não roda crawler) e retorna JSON com:
+    - `mc`: ficha do aparelho (Mais Celular persistido)
+    - `amazon`: ofertas salvas vinculadas
+    - `mercadolivre`: ofertas salvas vinculadas
+
+    Body (JSON):
+    - `termo` (obrigatório)
+    - `limite_ofertas` (opcional): quantas ofertas por loja (1–32). Padrão vem de `OFERTAS_POR_BUSCA`.
+    """
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Body deve ser um objeto JSON.")
+    termo = (body.get("termo") or "").strip()
+    if not termo:
+        raise HTTPException(status_code=400, detail="Informe o termo de busca.")
+    limite = _coerce_limite_ofertas(body.get("limite_ofertas"))
+    cap = _limite_ofertas_por_busca() if limite is None else limite
+
+    tripla = buscar_aparelho_e_ofertas_no_banco(db, termo, limite_ofertas=cap)
+    if not tripla:
+        raise HTTPException(status_code=404, detail="Este aparelho não está na base de dados.")
+
+    ap, oa_rows, ol_rows = tripla
+    return {
+        "termo": termo,
+        "limite_ofertas": cap,
+        "mc": aparelho_para_dict(ap),
+        "amazon": [oferta_para_dict(o) for o in oa_rows],
+        "mercadolivre": [oferta_para_dict(o) for o in ol_rows],
+    }
 
 
 def _filtrar_ofertas(
@@ -273,9 +332,9 @@ def api_filtrar_ofertas_opcional(body: OfertasFiltrosPost, db: Session = Depends
     tags=["Cadastro"],
     summary="Ingerir lista de aparelhos (crawlers → banco)",
     description=(
-        "Recebe uma lista de termos de busca. Para **cada** termo, executa os crawlers "
-        "(Mais Celular, Amazon, Mercado Livre) e persiste no banco. "
-        "Pode levar vários minutos por termo; os itens são processados **em sequência**."
+        "Recebe uma lista de termos. Para **cada** termo, roda os três crawlers **em sequência** "
+        "(Mais Celular → Amazon → Mercado Livre). Crawlers isolados: "
+        "`POST /api/crawlers/mais-celular` (lista), `/api/crawlers/amazon`, `/api/crawlers/mercadolivre`."
     ),
 )
 async def api_ingest_aparelhos(
@@ -291,6 +350,8 @@ async def api_ingest_aparelhos(
             db,
             termo,
             ofertas_por_termo=body.ofertas_por_termo,
+            armazenamento_gb=body.armazenamento_gb,
+            armazenamentos_gb=body.armazenamentos_gb,
         )
         resultados.append(item)
     return IngestAparelhosResponse(

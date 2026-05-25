@@ -78,7 +78,7 @@
           {% elif amz_list and amz_list|length > 0 %}
           {% for amz in amz_list %}
           {% if not loop.first %}<hr class="my-4">{% endif %}
-          <p class="text-muted small mb-2">Opção {{ loop.index }} de {{ amz_list|length }}</p>
+          <p class="text-muted small mb-2 fw-semibold">{{ amz.rotulo_memoria or 'Oferta' }}</p>
           {% if amz.imagem_url and amz.imagem_url != img_hero %}
           <div class="text-center mb-3">
             <img src="{{ amz.imagem_url }}" alt="" class="img-fluid rounded border" style="max-height:160px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">
@@ -107,7 +107,7 @@
           {% elif ml_list and ml_list|length > 0 %}
           {% for ml in ml_list %}
           {% if not loop.first %}<hr class="my-4">{% endif %}
-          <p class="text-muted small mb-2">Opção {{ loop.index }} de {{ ml_list|length }}</p>
+          <p class="text-muted small mb-2 fw-semibold">{{ ml.rotulo_memoria or 'Oferta' }}</p>
           {% if ml.imagem_url and ml.imagem_url != img_hero %}
           <div class="text-center mb-3">
             <img src="{{ ml.imagem_url }}" alt="" class="img-fluid rounded border" style="max-height:160px;object-fit:contain;" loading="lazy" referrerpolicy="no-referrer">

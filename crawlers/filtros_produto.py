@@ -2,6 +2,42 @@
 import re
 
 
+def _tokens_busca(busca: str):
+    """
+    Tokens para casar título. «128gb» vira «128» + «gb» (títulos costumam ter «128 GB»).
+    """
+    q = re.sub(r"\s+", " ", (busca or "").strip().lower())
+    for tok in q.split():
+        if len(tok) < 2:
+            continue
+        m = re.match(r"^(\d{1,4})(gb|tb)$", tok, re.I)
+        if m:
+            yield m.group(1)
+            yield m.group(2).lower()
+        else:
+            yield tok
+
+
+def _normalizar_titulo_marketplace(titulo: str) -> str:
+    """Títulos do ML/Amazon: limpa pontuação mas mantém GB/TB que estava em parênteses."""
+
+    def _subst_paren(m: re.Match) -> str:
+        inner = m.group(1)
+        if re.search(r"\d+\s*(?:gb|tb)\b", inner, re.I):
+            return f" {inner} "
+        return " "
+
+    t = (titulo or "").strip()
+    t = re.sub(r"\(([^)]{0,80})\)", _subst_paren, t, flags=re.I)
+    t = re.sub(r"[^\w\s]", " ", t, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def titulo_atende_busca_marketplace(busca: str, titulo: str) -> bool:
+    """Como tokens exatos, mas com título normalizado (ex.: «128 Gb», «Nfe», hífens)."""
+    return titulo_atende_tokens_exatos(busca, _normalizar_titulo_marketplace(titulo))
+
+
 def titulo_atende_tokens_exatos(busca: str, titulo: str) -> bool:
     """
     Cada token (≥2 caracteres) da busca deve aparecer no título como palavra inteira.
@@ -11,11 +47,8 @@ def titulo_atende_tokens_exatos(busca: str, titulo: str) -> bool:
     tl = (titulo or "").strip()
     if not q or not tl:
         return False
-    q = q.lower()
     padded = " " + re.sub(r"\s+", " ", tl.lower()) + " "
-    for tok in q.split():
-        if len(tok) < 2:
-            continue
+    for tok in _tokens_busca(q):
         pat = r"(?<!\w)" + re.escape(tok) + r"(?!\w)"
         if not re.search(pat, padded, re.IGNORECASE):
             return False

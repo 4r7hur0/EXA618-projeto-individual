@@ -20,3 +20,9 @@ build/
 .pytest_cache/
 .mypy_cache/
 
+crawlers/debug/
+crawlers/.playwright-amazon-profile/
+crawlers/.playwright-ml-profile/
+.ml_profile/
+teste.py
+

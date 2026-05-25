@@ -13,6 +13,7 @@ from lxml import html as lhtml
 
 from crawlers.filtros_produto import (
     pontuacao_relevancia,
+    titulo_atende_busca_marketplace,
     titulo_atende_tokens_exatos,
     titulo_rejeitado_para_busca,
 )
@@ -42,7 +43,7 @@ def _candidatos_ml_listagem(html: str, nome_produto: str) -> list[tuple[int, str
             continue
         if titulo_rejeitado_para_busca(nome_produto, title):
             continue
-        if not titulo_atende_tokens_exatos(nome_produto, title):
+        if not titulo_atende_busca_marketplace(nome_produto, title):
             continue
         seen.add(full)
         sc = pontuacao_relevancia(nome_produto, title)
@@ -69,7 +70,7 @@ def _candidatos_ml_listagem(html: str, nome_produto: str) -> list[tuple[int, str
             continue
         if titulo_rejeitado_para_busca(nome_produto, title):
             continue
-        if not titulo_atende_tokens_exatos(nome_produto, title):
+        if not titulo_atende_busca_marketplace(nome_produto, title):
             continue
         seen.add(full)
         sc = pontuacao_relevancia(nome_produto, title)
@@ -102,7 +103,12 @@ def escolher_link_ml_listagem(html: str, nome_produto: str) -> str | None:
 
 
 def escolher_links_amazon_busca(
-    html: str, nome_produto: str, base_url: str, *, max_links: int = 12
+    html: str,
+    nome_produto: str,
+    base_url: str,
+    *,
+    max_links: int = 12,
+    relaxar_tokens: bool = False,
 ) -> list[str]:
     """
     Vários ASIN/links de busca (melhor score primeiro), sem duplicar URL.
@@ -136,7 +142,9 @@ def escolher_links_amazon_busca(
 
         if titulo_rejeitado_para_busca(nome_produto, titulo_txt):
             continue
-        if not titulo_atende_tokens_exatos(nome_produto, titulo_txt):
+        if not relaxar_tokens and not titulo_atende_tokens_exatos(
+            nome_produto, titulo_txt
+        ):
             continue
 
         titulo_lower = titulo_txt.lower()

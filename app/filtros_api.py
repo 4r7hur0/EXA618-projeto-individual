@@ -39,18 +39,40 @@ def preco_brl_para_float(texto: str | None) -> float | None:
 
 def capacidade_para_gb(texto: str | None) -> int | None:
     """
-    Extrai capacidade em GB de textos como:
+    Extrai a primeira capacidade em GB de textos como:
     '8GB', '8 GB', '1TB', '128GB (104GB disponível)'.
     """
+    caps = capacidades_gb_em_texto(texto)
+    return caps[0] if caps else None
+
+
+def capacidades_gb_em_texto(texto: str | None) -> list[int]:
+    """Todas as capacidades encontradas (ex.: título com 128 GB e 256 GB)."""
     if not texto:
-        return None
+        return []
     s = str(texto)
-    m = re.search(r"(\d{1,4})\s*(TB|GB)\b", s, re.I)
-    if not m:
-        return None
-    v = int(m.group(1))
-    u = m.group(2).upper()
-    return v * 1024 if u == "TB" else v
+    out: list[int] = []
+    for m in re.finditer(r"(\d{1,4})\s*(GB|TB)\b", s, re.I):
+        v = int(m.group(1))
+        u = m.group(2).upper()
+        gb = v * 1024 if u == "TB" else v
+        if gb not in out:
+            out.append(gb)
+    return out
+
+
+def armazenamento_compativel_com_busca(
+    nome: str,
+    memoria: str | None,
+    armazenamento_gb: int | None,
+) -> bool:
+    """True se o anúncio pode ser da variante pedida (não só a primeira GB do texto)."""
+    if armazenamento_gb is None:
+        return True
+    caps = capacidades_gb_em_texto(f"{nome} {memoria or ''}")
+    if not caps:
+        return True
+    return int(armazenamento_gb) in caps
 
 
 _ACESSORIO_RE = re.compile(

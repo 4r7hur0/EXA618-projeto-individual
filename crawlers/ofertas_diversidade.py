@@ -13,12 +13,8 @@ def limite_ofertas_loja(n: int) -> int:
 
 def selecionar_ofertas_armazenamento_diverso(ofertas: list[dict], max_n: int) -> list[dict]:
     """
-    Mantém filtros já aplicados no crawler; apenas escolhe *quais* ofertas salvar:
-
-    1. Primeiro: no máximo um anúncio por cada GB parseável distinto na memória.
-    2. Depois: completa até `max_n` com os demais (pode repetir mesmo GB).
-
-    Assim aumenta variedade de 64/128/256 GB numa única ingestão quando a listagem trouxer vários PDPs.
+    No máximo **uma** oferta por capacidade (GB) distinta — nunca repete a mesma memória.
+    `max_n` limita quantas capacidades diferentes entram (ex.: 128, 256, 512).
     """
     max_n = max(0, int(max_n))
     if max_n <= 0 or not ofertas:
@@ -34,20 +30,11 @@ def selecionar_ofertas_armazenamento_diverso(ofertas: list[dict], max_n: int) ->
         link = (it.get("link") or "").strip()
         if not link or link in seen_links:
             continue
-        g = capacidade_para_gb(it.get("memoria"))
-        if g is not None and g in seen_gb:
-            continue
+        g = capacidade_para_gb(it.get("memoria")) or capacidade_para_gb(it.get("nome"))
         if g is not None:
+            if g in seen_gb:
+                continue
             seen_gb.add(g)
-        seen_links.add(link)
-        out.append(it)
-
-    for it in ofertas:
-        if len(out) >= max_n:
-            break
-        link = (it.get("link") or "").strip()
-        if not link or link in seen_links:
-            continue
         seen_links.add(link)
         out.append(it)
 
