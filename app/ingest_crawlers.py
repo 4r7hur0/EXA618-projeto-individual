@@ -41,7 +41,7 @@ from crawlers.mercado_livre import (
     crawler_mercadolivre_completo,
     crawler_mercadolivre_sequencia,
 )
-from crawlers.ofertas_diversidade import OFERTAS_MAX_POR_LOJA
+from app.ofertas_limites import OFERTAS_MAX_POR_LOJA
 
 
 def _limite_ofertas(n_override: int | None) -> int:

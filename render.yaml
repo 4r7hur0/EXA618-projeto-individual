@@ -1,48 +1,17 @@
+# Blueprint Render: https://render.com/docs/blueprint-spec
 services:
   - type: web
-    name: teste-parser
-    env: docker
-    plan: free
-    autoDeploy: true
-    healthCheckPath: /
+    name: catalogo-aparelhos
+    runtime: python
+    buildCommand: >-
+      pip install -r requirements-prod.txt &&
+      cd frontend && npm ci && npm run build
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: DB_CONNECTION
-        value: pgsql
-      - key: DB_HOST
-        fromDatabase:
-          name: teste-parser-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: teste-parser-db
-          property: port
-      - key: DB_DATABASE
-        fromDatabase:
-          name: teste-parser-db
-          property: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: teste-parser-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: teste-parser-db
-          property: password
-      - key: DB_SSL
-        value: "true"
-      - key: LOG_LEVEL
-        value: INFO
-      # Ofertas por loja por termo (1–32); crawler prioriza GB distintos
-      - key: OFERTAS_POR_BUSCA
-        value: "8"
-      # Timeout do Mais Celular (ms)
-      - key: MAISCELULAR_NAV_TIMEOUT_MS
-        value: "90000"
-      # Em produção não use reload
-      - key: WEB_RELOAD
+      - key: ENABLE_CRAWLERS
         value: "0"
-
-databases:
-  - name: teste-parser-db
-    plan: free
-
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      # Defina no painel do Render (não commite senhas):
+      # DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD, DB_SSL=true
+      # ou DATABASE_URL

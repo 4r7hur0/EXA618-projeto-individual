@@ -10,17 +10,25 @@ class OfertasFiltrosPost(BaseModel):
     (ex.: só `preco_max` ou só `marketplace`).
     """
 
+    termo: str | None = Field(
+        None,
+        description=(
+            "Texto no modelo do aparelho ou no nome do produto (contém, sem diferenciar maiúsculas)."
+        ),
+    )
     marketplace: str | None = Field(
         None,
         description='Onde comprar: "amazon" ou "mercadolivre". Omitido = todas as origens.',
     )
+    preco_min: float | None = Field(
+        None,
+        ge=0,
+        description="Piso de preço em reais (inclusive), conforme valor parseado do texto.",
+    )
     preco_max: float | None = Field(
         None,
         ge=0,
-        description=(
-            "Teto de preço: entram ofertas com preço **de 0 até este valor** (reais, inclusive), "
-            "conforme valor parseado do texto."
-        ),
+        description="Teto de preço em reais (inclusive), conforme valor parseado do texto.",
     )
     memoria_ram_gb: int | None = Field(
         None,
@@ -55,6 +63,16 @@ class OfertasFiltrosPost(BaseModel):
             ]
         },
     )
+
+    @field_validator("termo", mode="before")
+    @classmethod
+    def _normalizar_termo(cls, v: object) -> object:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return v
 
     @field_validator("marketplace", mode="before")
     @classmethod

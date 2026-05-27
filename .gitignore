@@ -17,9 +17,13 @@ dist/
 build/
 *.egg-info/
 
-.pytest_cache/
-.mypy_cache/
+frontend/node_modules/
 
+.pytest_cache/
+.mypy_cache/S
+
+scripts/
+crawlers/
 crawlers/debug/
 crawlers/.playwright-amazon-profile/
 crawlers/.playwright-ml-profile/
