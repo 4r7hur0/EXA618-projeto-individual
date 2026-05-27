@@ -50,7 +50,18 @@ def _openapi_tags() -> list[dict[str, str]]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging
+
     configure_logging()
+    log = logging.getLogger(__name__)
+    index = FRONTEND_DIST / "index.html"
+    if index.is_file():
+        log.info("Frontend React: %s", FRONTEND_DIST)
+    else:
+        log.warning(
+            "frontend/dist ausente em %s — rode `cd frontend && npm run build` no deploy.",
+            FRONTEND_DIST,
+        )
     init_db()
     yield
 

@@ -1,20 +1,25 @@
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+# Produção: build do React + API FastAPI (sem Playwright/crawlers).
+
+FROM node:20-bookworm-slim AS frontend-build
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    ENABLE_CRAWLERS=0
 
 WORKDIR /app
 
-# Instala dependências Python
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements-prod.txt .
+RUN pip install --no-cache-dir -r requirements-prod.txt
 
-# O image do Playwright já inclui browsers. Garantimos o Chromium disponível.
-RUN python -m playwright install --with-deps chromium
+COPY app/ ./app/
+COPY run_web.py ./
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
-# Copia o projeto
-COPY . /app
-
-# Render injeta $PORT; default local = 8000
-CMD ["bash", "-lc", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
-
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -2,16 +2,10 @@
 services:
   - type: web
     name: catalogo-aparelhos
-    runtime: python
-    buildCommand: >-
-      pip install -r requirements-prod.txt &&
-      cd frontend && npm ci && npm run build
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: ENABLE_CRAWLERS
         value: "0"
-      - key: PYTHON_VERSION
-        value: "3.12.0"
-      # Defina no painel do Render (não commite senhas):
-      # DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD, DB_SSL=true
-      # ou DATABASE_URL
+      # Defina no painel (Supabase): DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD, DB_SSL=true
+      # ou DATABASE_URL (External / Supabase pooler). Não use host dpg-xxx-a sem domínio.

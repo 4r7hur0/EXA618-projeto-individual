@@ -38,8 +38,11 @@ Com `frontend/dist` presente, o FastAPI serve a SPA em `/` e repassa `/api/*` pa
 ## Deploy no Render (API + React, sem crawlers)
 
 1. Envie o repositório para o GitHub.
-2. No [Render](https://render.com): **New → Blueprint** (ou Web Service) e use o `render.yaml`, ou configure manualmente:
-   - **Build:** `pip install -r requirements-prod.txt && cd frontend && npm ci && npm run build`
+2. No [Render](https://render.com): **New → Blueprint** (recomendado, usa `render.yaml` + **Docker**) ou Web Service com **Runtime: Docker** e `Dockerfile` na raiz.
+   - O Docker gera `frontend/dist` no build; sem isso a raiz `/` mostra só JSON da API.
+   - **Sem Docker** (runtime Python): **Build** deve ser  
+     `pip install -r requirements-prod.txt && cd frontend && npm ci && npm run build`  
+     e variável **`NODE_VERSION=20`** no ambiente (senão `npm` não existe e o React não compila).
    - **Start:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 3. Variáveis de ambiente no painel — **use o mesmo Supabase do `.env` local** (recomendado):
    - `DB_HOST=aws-1-us-east-1.pooler.supabase.com` (ou o host do seu projeto)
